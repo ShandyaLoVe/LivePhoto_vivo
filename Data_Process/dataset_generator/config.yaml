@@ -1,0 +1,105 @@
+# Paths are resolved from the working directory where the command is run.
+input_dir: ./videos
+output_dir: ./dataset_output
+
+seed: 42
+num_workers: 8
+overwrite: false
+ffmpeg_bin: ffmpeg
+ffprobe_bin: ffprobe
+
+video:
+  extensions: [mp4, mov, mkv, avi, webm, m4v, mpeg, mpg, ts]
+  # true: inspect every regular file with ffprobe; suffixes are never trusted.
+  scan_all_files: true
+  # Keep already completed clips if corruption appears later in a video.
+  allow_partial_decode: true
+
+clip:
+  num_frames: 7
+  frame_interval: 1
+  clip_stride: 7
+  drop_last: true
+
+image:
+  width: 512
+  height: 512
+  # Optional aliases: gt_width / gt_height. crop_size (int or [H, W])
+  # overrides width/height as the final output size.
+  gt_width: null
+  gt_height: null
+  crop_size: null
+  keep_aspect_ratio: true
+  random_crop: true
+  center_crop: false
+  interpolation: lanczos
+
+reference:
+  # center | first | last | random | sharpest
+  strategy: center
+
+degradation:
+  # frame_independent | clip_consistent
+  mode: clip_consistent
+  temporal_variation: 0.03
+
+  blur:
+    enabled: true
+    sigma: [0.2, 3.0]
+
+  motion_blur:
+    enabled: false
+    kernel_size: [3, 15]
+    angle: [-180.0, 180.0]
+
+  downsample:
+    enabled: true
+    scale: [1.0, 4.0]
+    down_interpolation: area
+    up_interpolation: cubic
+
+  gaussian_noise:
+    enabled: true
+    sigma: [0.0, 20.0]
+
+  poisson_noise:
+    enabled: false
+    peak: [30.0, 60.0]
+
+  color_distortion:
+    enabled: false
+    saturation: [0.85, 1.15]
+    hue_shift: [-5.0, 5.0]
+
+  brightness_contrast:
+    enabled: false
+    brightness: [-10.0, 10.0]
+    contrast: [0.9, 1.1]
+
+  gamma:
+    enabled: false
+    gamma: [0.85, 1.2]
+
+  # amount > 1 can create oversharpening.
+  sharpen:
+    enabled: false
+    amount: [0.0, 1.5]
+    radius: [0.5, 1.5]
+
+  jpeg:
+    enabled: true
+    quality: [30, 95]
+
+  # Real clip-level encode/decode. This is intentionally clip-level in both modes.
+  video_compression:
+    enabled: false
+    codec: libx264
+    crf: [18, 38]
+    preset: medium
+    keyint: 12
+
+split:
+  train: 0.8
+  val: 0.1
+  test: 0.1
+

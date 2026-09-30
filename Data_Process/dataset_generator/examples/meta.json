@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "clip_id": "clip_000001",
+  "source_video": "scene_a/video_001.mp4",
+  "source_start_frame": 120,
+  "source_end_frame": 132,
+  "frame_indices": [120, 122, 124, 126, 128, 130, 132],
+  "frame_interval": 2,
+  "fps": 30.0,
+  "avg_frame_rate": "30/1",
+  "nominal_frame_rate": "30/1",
+  "num_frames": 7,
+  "reference_frame_index": 126,
+  "reference_position": 3,
+  "reference_strategy": "center",
+  "resolution": [512, 512],
+  "source_resolution": [1080, 1920],
+  "source_codec": "h264",
+  "source_pixel_format": "yuv420p",
+  "source_rotation": 0,
+  "decode_pixel_format": "bgr24",
+  "spatial_transform": {
+    "source_height": 1080,
+    "source_width": 1920,
+    "resized_height": 512,
+    "resized_width": 910,
+    "crop_top": 0,
+    "crop_left": 207,
+    "output_height": 512,
+    "output_width": 512,
+    "interpolation": "lanczos",
+    "keep_aspect_ratio": true
+  },
+  "degradation": {
+    "mode": "clip_consistent",
+    "temporal_variation": 0.03,
+    "base_parameters": {
+      "blur_sigma": 1.3,
+      "downsample_scale": 2.0,
+      "gaussian_noise_sigma": 5.0,
+      "jpeg_quality": 70
+    },
+    "frame_parameters": [
+      {"blur_sigma": 1.31, "downsample_scale": 2.01, "gaussian_noise_sigma": 4.9, "jpeg_quality": 70},
+      {"blur_sigma": 1.29, "downsample_scale": 2.02, "gaussian_noise_sigma": 5.1, "jpeg_quality": 69},
+      {"blur_sigma": 1.30, "downsample_scale": 1.99, "gaussian_noise_sigma": 5.0, "jpeg_quality": 70},
+      {"blur_sigma": 1.31, "downsample_scale": 2.00, "gaussian_noise_sigma": 5.0, "jpeg_quality": 70},
+      {"blur_sigma": 1.30, "downsample_scale": 2.01, "gaussian_noise_sigma": 5.1, "jpeg_quality": 71},
+      {"blur_sigma": 1.29, "downsample_scale": 2.00, "gaussian_noise_sigma": 4.9, "jpeg_quality": 70},
+      {"blur_sigma": 1.30, "downsample_scale": 1.98, "gaussian_noise_sigma": 5.0, "jpeg_quality": 69}
+    ],
+    "video_compression": null,
+    "pipeline_order": [
+      "gaussian_blur",
+      "motion_blur",
+      "downsample_upsample",
+      "noise",
+      "color",
+      "brightness_contrast",
+      "gamma",
+      "sharpen",
+      "jpeg",
+      "video_compression"
+    ]
+  },
+  "seed": 246813579
+}
+
