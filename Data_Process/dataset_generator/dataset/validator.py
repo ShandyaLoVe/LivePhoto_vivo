@@ -7,8 +7,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 
-from dataset.metadata import read_json
 from .images import decode_image
+from .metadata import read_json
 
 
 class ErrorCollector:
@@ -31,7 +31,9 @@ def _png_files(path: Path) -> List[Path]:
 
 
 def _entries(path: Path) -> List[Path]:
-    return sorted(path.iterdir()) if path.is_dir() else []
+    return sorted(
+        item for item in path.iterdir() if not item.name.startswith(".")
+    ) if path.is_dir() else []
 
 
 def validate_dataset(
@@ -86,7 +88,7 @@ def validate_dataset(
                 entries = _entries(clip_dir / kind)
                 unexpected = [
                     item.name for item in entries
-                    if not item.is_file() or item.name.startswith(".") or item.suffix.lower() != ".png"
+                    if not item.is_file() or item.suffix.lower() != ".png"
                 ]
                 if unexpected:
                     errors.add("%s: %s contains unexpected entries: %s" % (prefix, kind, unexpected))

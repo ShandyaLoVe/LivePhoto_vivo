@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-10-03",
+  "dataset": {
+    "name": "LLS / Live2K training patches",
+    "root_used_for_audit": "/nfs/wjl/datasets/lls",
+    "paired_lq_member": "lq_sequence/04.png",
+    "reference_member": "ref.png",
+    "reference_used_for_degradation_statistics": false,
+    "inventory": {
+      "OPPO": {"shards": 58, "patches": 57778, "parent_ids": 1252},
+      "iPhone": {"shards": 61, "patches": 60291, "parent_ids": 1342},
+      "total_patches": 118069
+    }
+  },
+  "audit_scope": {
+    "seed": 20261003,
+    "sampled_parents_per_platform": 120,
+    "patches_per_parent": 1,
+    "total_pairs": 240,
+    "excluded_training_validation_holdout": true,
+    "reason": "Reduce correlation among patches from the same source while covering many parent samples.",
+    "quantiles": [0.1, 0.5, 0.9],
+    "registration": "ORB + RANSAC similarity transform at native LQ resolution",
+    "color_fit": "Robust per-channel affine fit: LQ = gain * downsampled_aligned_GT + bias"
+  },
+  "platforms": {
+    "OPPO": {
+      "gt_patch_size": [512, 512],
+      "lq_patch_size": [216, 216],
+      "gt_to_lq_scale": {"p10": 2.3703703704, "median": 2.3703703704, "p90": 2.3703703704},
+      "registration_displacement_lq_px": {"p10": 0.0518452853, "median": 0.1541862980, "p90": 0.3097202807},
+      "median_luma_ratio_lq_over_gt": {"p10": 0.8597483039, "median": 0.9242658019, "p90": 0.9978416681},
+      "luma_range_ratio_lq_over_gt": {"p10": 0.7820570670, "median": 0.8907204647, "p90": 0.9895602228},
+      "chroma_proxy_ratio_lq_over_gt": {"p10": 0.7249961436, "median": 0.8122291361, "p90": 0.9388498155},
+      "rgb_gain": {
+        "r": {"p10": 0.7474944684, "median": 0.8653386871, "p90": 0.9551463065},
+        "g": {"p10": 0.7559140770, "median": 0.8757496806, "p90": 0.9870636317},
+        "b": {"p10": 0.7636760133, "median": 0.8690158166, "p90": 0.9702924789}
+      },
+      "rgb_bias": {
+        "r": {"p10": -0.0290523195, "median": 0.0276792177, "p90": 0.1047896204},
+        "g": {"p10": -0.0335463656, "median": 0.0226642410, "p90": 0.0926402550},
+        "b": {"p10": -0.0226750389, "median": 0.0275756302, "p90": 0.1017418125}
+      },
+      "edge_strength_ratio_lq_over_gt": {"p10": 0.6718541054, "median": 0.8644380132, "p90": 1.0544037108},
+      "laplacian_variance_ratio_lq_over_gt": {"p10": 0.2260858964, "median": 0.4745868269, "p90": 0.7678119210},
+      "hf_residual_proxy_8bit": {"p10": 0.8760785893, "median": 2.3407818300, "p90": 4.9072382330},
+      "equivalent_preblur_sigma_gt_px": {"fit_samples": 30, "p10": 0.5, "median": 1.0, "p90": 1.55},
+      "simulation_blur_calibration": 0.55
+    },
+    "iPhone": {
+      "gt_patch_size": [504, 504],
+      "lq_patch_size": [240, 240],
+      "gt_to_lq_scale": {"p10": 2.1, "median": 2.1, "p90": 2.1},
+      "registration_displacement_lq_px": {"p10": 0.0197994033, "median": 0.0408431269, "p90": 0.1005495139},
+      "median_luma_ratio_lq_over_gt": {"p10": 1.0119220138, "median": 1.1228885055, "p90": 1.2388106227},
+      "luma_range_ratio_lq_over_gt": {"p10": 0.8055979079, "median": 0.8974563616, "p90": 0.9401550168},
+      "chroma_proxy_ratio_lq_over_gt": {"p10": 0.8092407470, "median": 0.9053718298, "p90": 1.0229003410},
+      "rgb_gain": {
+        "r": {"p10": 0.7850511886, "median": 0.8840619918, "p90": 0.9603766251},
+        "g": {"p10": 0.7916017611, "median": 0.8744675887, "p90": 0.9528813127},
+        "b": {"p10": 0.7962979064, "median": 0.8777880314, "p90": 0.9734299053}
+      },
+      "rgb_bias": {
+        "r": {"p10": 0.0512798416, "median": 0.0932063502, "p90": 0.1403553290},
+        "g": {"p10": 0.0593973093, "median": 0.0953555800, "p90": 0.1443596869},
+        "b": {"p10": 0.0539102846, "median": 0.0935471019, "p90": 0.1413492895}
+      },
+      "edge_strength_ratio_lq_over_gt": {"p10": 0.5738084118, "median": 0.7829213044, "p90": 0.8963432621},
+      "laplacian_variance_ratio_lq_over_gt": {"p10": 0.2728397257, "median": 0.4033109582, "p90": 0.5778639230},
+      "hf_residual_proxy_8bit": {"p10": 1.7003901488, "median": 3.1509739537, "p90": 5.7365384992},
+      "equivalent_preblur_sigma_gt_px": {"fit_samples": 30, "p10": 1.0, "median": 1.0, "p90": 1.5},
+      "simulation_blur_calibration": 1.05
+    }
+  },
+  "simulation": {
+    "pipeline": [
+      "jointly sample one empirical parameter row for the chosen platform",
+      "sample equivalent GT-space Gaussian preblur sigma",
+      "bicubic resize to the platform native LQ scale",
+      "apply RGB gain and bias",
+      "calibrate luma range, median luma ratio, and chroma proxy",
+      "add signal-dependent Gaussian perturbation at 0.3 times the mixed high-frequency residual proxy",
+      "quantize to 8-bit RGB"
+    ],
+    "default_noise_fraction": 0.3,
+    "codec_simulation": false,
+    "output": "single-frame GT/LQ pair"
+  },
+  "example": {
+    "platform": "OPPO",
+    "sample_id": "1449_0",
+    "gt": "GT.png",
+    "lq": "LQ.png",
+    "ref": "REF.png"
+  },
+  "limitations": [
+    "The residual proxy mixes noise, ISP, compression, texture, motion, and registration error.",
+    "Decoded PNG files do not identify the original video codec or bitrate.",
+    "A single GT cannot produce a genuine independent reference frame or a temporally correct video sequence."
+  ]
+}

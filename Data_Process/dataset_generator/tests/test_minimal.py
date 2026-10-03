@@ -140,6 +140,14 @@ class EndToEndTest(unittest.TestCase):
             self.assertEqual(summary["num_train_clips"], 2)
             self.assertEqual(summary["num_failed_videos"], 0)
 
+            first_clip = output_dir / "train" / "clip_000000"
+            for hidden_path in (
+                first_clip / "GT" / "._000.png",
+                first_clip / "LQ" / "._000.png",
+                first_clip / "REF" / "._ref.png",
+            ):
+                hidden_path.write_bytes(b"filesystem metadata")
+
             report = validate_dataset(
                 output_dir,
                 expected_size=(48, 64),
@@ -147,7 +155,7 @@ class EndToEndTest(unittest.TestCase):
                 expected_num_frames=5,
             )
             self.assertTrue(report["valid"], report["errors"])
-            first_meta = read_json(output_dir / "train" / "clip_000000" / "meta.json")
+            first_meta = read_json(first_clip / "meta.json")
             self.assertEqual(first_meta["frame_indices"], [0, 2, 4, 6, 8])
             self.assertEqual(first_meta["reference_frame_index"], 4)
             self.assertEqual(first_meta["gt_resolution"], [48, 64])
