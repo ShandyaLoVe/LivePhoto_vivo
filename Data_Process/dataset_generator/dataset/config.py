@@ -65,6 +65,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "downsample": {"enabled": True, "scale": [1.0, 4.0], "down_interpolation": "area", "up_interpolation": "cubic"},
         "gaussian_noise": {"enabled": True, "sigma": [0.0, 20.0]},
         "poisson_noise": {"enabled": False, "peak": [30.0, 60.0]},
+        "device_style": {"enabled": False, "profile": "random", "profiles": {}},
         "color_distortion": {"enabled": False, "saturation": [0.85, 1.15], "hue_shift": [-5.0, 5.0]},
         "brightness_contrast": {"enabled": False, "brightness": [-10.0, 10.0], "contrast": [0.9, 1.1]},
         "gamma": {"enabled": False, "gamma": [0.85, 1.2]},
@@ -159,6 +160,14 @@ def validate_config(config: Mapping[str, Any]) -> None:
         raise ValueError("Unsupported reference.strategy")
     if config["degradation"]["mode"] not in {"frame_independent", "clip_consistent"}:
         raise ValueError("degradation.mode must be frame_independent or clip_consistent")
+    device = config["degradation"].get("device_style", {})
+    if device.get("enabled"):
+        profiles = device.get("profiles", {})
+        if not isinstance(profiles, Mapping) or not profiles:
+            raise ValueError("degradation.device_style.profiles must be a non-empty mapping")
+        requested = str(device.get("profile", "random"))
+        if requested != "random" and requested not in profiles:
+            raise ValueError("degradation.device_style.profile is not present in profiles")
 
     split = config["split"]
     expected = {"train", "val", "test"}

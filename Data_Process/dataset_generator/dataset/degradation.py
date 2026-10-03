@@ -81,6 +81,43 @@ def _operation_params(config: Mapping[str, Any], rng: np.random.Generator) -> Di
     jpeg = config.get("jpeg", {})
     if jpeg.get("enabled"):
         params["jpeg_quality"] = int(np.clip(_sample(jpeg.get("quality", [30, 95]), rng, integer=True), 1, 100))
+
+    device = config.get("device_style", {})
+    if device.get("enabled"):
+        profiles = device.get("profiles", {})
+        if not isinstance(profiles, Mapping) or not profiles:
+            raise ValueError("degradation.device_style.profiles must be a non-empty mapping")
+        requested = str(device.get("profile", "random"))
+        names = sorted(str(name) for name in profiles)
+        if requested == "random":
+            profile_name = names[int(rng.integers(len(names)))]
+        elif requested in profiles:
+            profile_name = requested
+        else:
+            raise ValueError("Unknown device style profile: %s" % requested)
+        profile = profiles[profile_name]
+        if not isinstance(profile, Mapping):
+            raise ValueError("Device style profile must be a mapping: %s" % profile_name)
+
+        def sample_rgb(key: str, defaults: Sequence[Any]) -> List[float]:
+            spec = profile.get(key, defaults)
+            if isinstance(spec, Mapping):
+                values = [spec.get(channel, defaults[index]) for index, channel in enumerate(("r", "g", "b"))]
+            elif isinstance(spec, (list, tuple)) and len(spec) == 3:
+                values = list(spec)
+            else:
+                raise ValueError("device_style.%s.%s must define R/G/B ranges" % (profile_name, key))
+            return [float(_sample(value, rng)) for value in values]
+
+        params["device_style_profile"] = profile_name
+        params["device_rgb_gains"] = sample_rgb("rgb_gain", ([1.0, 1.0],) * 3)
+        params["device_rgb_biases"] = sample_rgb("rgb_bias", ([0.0, 0.0],) * 3)
+        params["device_contrast_multiplier"] = _sample(profile.get("contrast_multiplier", [1.0, 1.0]), rng)
+        params["device_brightness_offset"] = _sample(profile.get("brightness_offset", [0.0, 0.0]), rng)
+        params["device_chroma_multiplier"] = max(
+            0.0,
+            _sample(profile.get("chroma_multiplier", [1.0, 1.0]), rng),
+        )
     return params
 
 
@@ -105,6 +142,9 @@ def _jitter_params(base: Mapping[str, Any], config: Mapping[str, Any], amount: f
         "jpeg_quality": (config.get("jpeg", {}).get("quality", [30, 95]), True, False),
     }
     for key in list(result):
+        # Device-style parameters intentionally remain exactly clip-consistent.
+        if key not in specs:
+            continue
         spec, integer, odd = specs[key]
         result[key] = _jitter(result[key], spec, amount, rng, integer=integer, odd=odd)
     if "downsample_scale" in result:
@@ -121,6 +161,27 @@ def _motion_kernel(size: int, angle: float) -> np.ndarray:
     kernel = cv2.warpAffine(kernel, matrix, (size, size))
     total = float(kernel.sum())
     return kernel / total if total > 0 else kernel
+
+
+def _apply_device_style(image: np.ndarray, params: Mapping[str, Any]) -> np.ndarray:
+    if "device_style_profile" not in params:
+        return image
+    rgb = image[:, :, ::-1].astype(np.float32) / 255.0
+    gains = np.asarray(params["device_rgb_gains"], dtype=np.float32).reshape(1, 1, 3)
+    biases = np.asarray(params["device_rgb_biases"], dtype=np.float32).reshape(1, 1, 3) / 255.0
+    rgb = np.clip(rgb * gains + biases, 0.0, 1.0)
+
+    luma_weights = np.asarray([0.2126, 0.7152, 0.0722], dtype=np.float32).reshape(1, 1, 3)
+    luma = np.sum(rgb * luma_weights, axis=2, keepdims=True)
+    pivot = float(np.median(luma))
+    contrast = float(params.get("device_contrast_multiplier", 1.0))
+    brightness = float(params.get("device_brightness_offset", 0.0)) / 255.0
+    rgb = np.clip((rgb - pivot) * contrast + pivot + brightness, 0.0, 1.0)
+
+    luma = np.sum(rgb * luma_weights, axis=2, keepdims=True)
+    chroma = float(params.get("device_chroma_multiplier", 1.0))
+    rgb = np.clip(luma + chroma * (rgb - luma), 0.0, 1.0)
+    return np.ascontiguousarray(rgb[:, :, ::-1] * 255.0, dtype=np.float32)
 
 
 def _apply_frame(
@@ -163,6 +224,8 @@ def _apply_frame(
                 (output_width, output_height),
                 interpolation=INTERPOLATIONS[interpolation_name],
             )
+
+    value = _apply_device_style(value, params)
 
     noise_sigma = float(params.get("gaussian_noise_sigma", 0.0))
     if noise_sigma > 0:
@@ -278,7 +341,7 @@ def degrade_clip(
             "interpolation": str(output_interpolation),
         },
         "pipeline_order": [
-            "gaussian_blur", "motion_blur", "downsample_upsample", "lq_resize", "noise",
+            "gaussian_blur", "motion_blur", "downsample_upsample", "lq_resize", "device_style", "noise",
             "color", "brightness_contrast", "gamma", "sharpen", "jpeg", "video_compression",
         ],
     }

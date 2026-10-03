@@ -98,6 +98,13 @@ degradation:
     enabled: false
     peak: [30.0, 60.0]
 
+  # Optional clip-consistent phone color rendering. RGB biases are in 8-bit
+  # code values; gain/bias, luma contrast/offset and chroma are recorded in meta.
+  device_style:
+    enabled: false
+    profile: random
+    profiles: {}
+
   color_distortion:
     enabled: false
     saturation: [0.85, 1.15]

@@ -8,10 +8,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import cv2
 import numpy as np
 
 from dataset.clip_sampler import iter_clips, iter_time_clips
 from dataset.config import DEFAULT_CONFIG
+from dataset.degradation import degrade_clip
 from dataset.metadata import read_json
 from dataset.validator import validate_dataset
 from generate_dataset import _split_assignments, generate_dataset
@@ -49,6 +51,37 @@ class ClipSamplerTest(unittest.TestCase):
         self.assertEqual(clips[0].frame_indices[-1], 147)
         self.assertEqual((clips[0].window_start_frame, clips[0].window_end_frame), (0, 149))
         self.assertEqual((clips[-1].window_start_frame, clips[-1].window_end_frame), (450, 599))
+
+    def test_device_style_is_clip_consistent_and_reproducible(self) -> None:
+        frame = np.full((48, 64, 3), (80, 120, 180), dtype=np.uint8)
+        config = {
+            "mode": "clip_consistent",
+            "temporal_variation": 0.1,
+            "device_style": {
+                "enabled": True,
+                "profile": "test-phone",
+                "profiles": {
+                    "test-phone": {
+                        "rgb_gain": {"r": [1.02, 1.02], "g": [1.0, 1.0], "b": [0.98, 0.98]},
+                        "rgb_bias": {"r": [1.0, 1.0], "g": [0.0, 0.0], "b": [-1.0, -1.0]},
+                        "contrast_multiplier": [1.01, 1.01],
+                        "brightness_offset": [2.0, 2.0],
+                        "chroma_multiplier": [1.03, 1.03],
+                    }
+                },
+            },
+        }
+        first, first_meta = degrade_clip(
+            [frame, frame], config, np.random.default_rng(99), fps=15.0, output_size=(24, 32)
+        )
+        second, second_meta = degrade_clip(
+            [frame, frame], config, np.random.default_rng(99), fps=15.0, output_size=(24, 32)
+        )
+        self.assertEqual(first_meta, second_meta)
+        self.assertEqual(first_meta["base_parameters"]["device_style_profile"], "test-phone")
+        self.assertEqual(first_meta["frame_parameters"][0], first_meta["frame_parameters"][1])
+        self.assertTrue(np.array_equal(first[0], second[0]))
+        self.assertFalse(np.array_equal(first[0], cv2.resize(frame, (32, 24), interpolation=cv2.INTER_AREA)))
 
 
 @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg/ffprobe are required")

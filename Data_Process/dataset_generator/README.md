@@ -248,6 +248,32 @@ Gaussian blur
 
 每个启用项的数值可以是常数或 `[min, max]`。`frame_independent` 为每一帧独立采样全部逐帧参数；`clip_consistent` 先采样一组 base parameters，再按 `temporal_variation` 对每帧作小幅、范围内扰动。视频压缩天然是 clip 级操作，在两种模式下都只采样一次 CRF，并对完整 LQ 序列编码/解码；解码后的帧数和尺寸若变化，当前 source video 会失败而不是静默接受错位。
 
+`device_style` 可按 clip 采样一种手机风格，依次应用 RGB 分通道 gain/bias、以场景中值亮度为中心的对比度与曝光偏移、以及保亮度的色度缩放。设备风格参数在一个 clip 内保持不变，避免逐帧颜色闪烁，并完整记录到 `degradation.base_parameters`。例如：
+
+```yaml
+degradation:
+  device_style:
+    enabled: true
+    profile: random
+    profiles:
+      phone-a:
+        rgb_gain: {r: [0.99, 1.02], g: [0.99, 1.02], b: [0.98, 1.02]}
+        rgb_bias: {r: [-2, 2], g: [-2, 2], b: [-2, 2]}
+        contrast_multiplier: [0.97, 1.03]
+        brightness_offset: [-3, 3]
+        chroma_multiplier: [0.95, 1.06]
+```
+
+已有数据集只需修改 LQ 时，无须重新解码源视频或改写 GT/REF：
+
+```bash
+python regenerate_lq.py \
+  --config config.yaml \
+  --dataset ./dataset_output
+```
+
+该命令先从现有 GT 生成临时 LQ，随后原子替换、更新 `meta.json` 并运行完整校验；失败时会恢复原 LQ。
+
 `meta.json` 同时记录 base parameters、每一帧的实际参数和视频压缩参数。完整示例见 `examples/meta.json`。
 
 ## 数据划分与可复现性

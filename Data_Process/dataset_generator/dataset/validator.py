@@ -22,7 +22,10 @@ class ErrorCollector:
 
 
 def _png_files(path: Path) -> List[Path]:
-    return sorted([item for item in path.iterdir() if item.is_file() and item.suffix.lower() == ".png"]) if path.is_dir() else []
+    return sorted([
+        item for item in path.iterdir()
+        if item.is_file() and not item.name.startswith(".") and item.suffix.lower() == ".png"
+    ]) if path.is_dir() else []
 
 
 def _entries(path: Path) -> List[Path]:
@@ -79,7 +82,10 @@ def validate_dataset(
                 errors.add("%s: GT/LQ count mismatch (GT=%d, LQ=%d, expected=%d)" % (prefix, len(gt_files), len(lq_files), num_frames))
             for kind in ("GT", "LQ"):
                 entries = _entries(clip_dir / kind)
-                unexpected = [item.name for item in entries if not item.is_file() or item.suffix.lower() != ".png"]
+                unexpected = [
+                    item.name for item in entries
+                    if not item.is_file() or item.name.startswith(".") or item.suffix.lower() != ".png"
+                ]
                 if unexpected:
                     errors.add("%s: %s contains unexpected entries: %s" % (prefix, kind, unexpected))
             ref_entries = _entries(clip_dir / "REF")

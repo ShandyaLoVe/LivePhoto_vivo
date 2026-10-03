@@ -86,6 +86,38 @@ degradation:
     enabled: false
     peak: [60.0, 120.0]
 
+  # Conservative device-style approximation inspired by the supplied LLS
+  # degrader. These are heuristic ranges because its calibration CSV files are
+  # not available. One profile and one parameter set are shared by each clip.
+  device_style:
+    enabled: true
+    profile: random
+    profiles:
+      OPPO-like:
+        rgb_gain:
+          r: [1.005, 1.025]
+          g: [0.995, 1.015]
+          b: [0.975, 1.000]
+        rgb_bias:
+          r: [-1.0, 2.0]
+          g: [-1.5, 1.5]
+          b: [-2.0, 1.0]
+        contrast_multiplier: [0.97, 1.03]
+        brightness_offset: [-3.0, 2.0]
+        chroma_multiplier: [1.00, 1.06]
+      iPhone-like:
+        rgb_gain:
+          r: [0.990, 1.015]
+          g: [0.995, 1.015]
+          b: [0.995, 1.025]
+        rgb_bias:
+          r: [-1.5, 1.5]
+          g: [-1.0, 1.5]
+          b: [-1.0, 2.0]
+        contrast_multiplier: [0.98, 1.04]
+        brightness_offset: [-2.0, 3.0]
+        chroma_multiplier: [0.97, 1.04]
+
   color_distortion:
     enabled: true
     saturation: [0.97, 1.03]
