@@ -59,11 +59,11 @@ reference:
 # Live Photo video rather than a heavily corrupted restoration benchmark.
 degradation:
   mode: clip_consistent
-  temporal_variation: 0.01
+  temporal_variation: 0.015
 
   blur:
     enabled: true
-    sigma: [0.1, 0.65]
+    sigma: [0.25, 0.9]
 
   motion_blur:
     enabled: false
@@ -80,7 +80,7 @@ degradation:
 
   gaussian_noise:
     enabled: true
-    sigma: [0.0, 2.0]
+    sigma: [0.3, 3.0]
 
   poisson_noise:
     enabled: false
@@ -88,17 +88,17 @@ degradation:
 
   color_distortion:
     enabled: true
-    saturation: [0.98, 1.02]
-    hue_shift: [-1.0, 1.0]
+    saturation: [0.97, 1.03]
+    hue_shift: [-1.5, 1.5]
 
   brightness_contrast:
     enabled: true
-    brightness: [-2.0, 2.0]
-    contrast: [0.98, 1.02]
+    brightness: [-3.0, 3.0]
+    contrast: [0.97, 1.03]
 
   gamma:
     enabled: true
-    gamma: [0.98, 1.02]
+    gamma: [0.97, 1.03]
 
   sharpen:
     enabled: false
@@ -114,7 +114,7 @@ degradation:
   video_compression:
     enabled: true
     codec: libx264
-    crf: [18, 24]
+    crf: [20, 26]
     preset: medium
     keyint: 30
 
