@@ -1,0 +1,146 @@
+input_dir: /Volumes/DATA1/video_4K/ReadySetGo_3840x2160_120fps_420_10bit_YUV_RAW
+output_dir: /Volumes/DATA1/video_4K/ReadySetGo_dataset_45f_3s_livephoto
+
+seed: 42
+num_workers: 1
+overwrite: false
+ffmpeg_bin: ffmpeg
+ffprobe_bin: ffprobe
+
+video:
+  extensions: [yuv]
+  scan_all_files: false
+  exclude_dir_names: [ReadySetGo_dataset_45f_3s_livephoto]
+  allow_partial_decode: true
+  raw_yuv:
+    enabled: true
+    width: 3840
+    height: 2160
+    pix_fmt: yuv420p10le
+    fps: 120.0
+    rotation: 0
+    use_sidecar: false
+    sidecar_suffix: .json
+    files: {}
+
+clip:
+  num_frames: 45
+  frame_interval: 1
+  clip_stride: 45
+  drop_last: true
+  # 45 frames / 3 seconds = 15 FPS. Each window spans exactly 360 source
+  # frames at 120 FPS, sampled at an exact 8-source-frame interval.
+  sampling_fps: 15.0
+  clip_duration_seconds: 3.0
+  clip_stride_seconds: 3.0
+
+image:
+  width: null
+  height: null
+  gt_width: null
+  gt_height: null
+  preserve_source_resolution: true
+  lq_width: 960
+  lq_height: 540
+  lq_interpolation: area
+  crop_size: null
+  keep_aspect_ratio: true
+  random_crop: false
+  center_crop: false
+  interpolation: lanczos
+
+reference:
+  strategy: center
+
+degradation:
+  mode: clip_consistent
+  temporal_variation: 0.015
+
+  blur:
+    enabled: true
+    sigma: [0.25, 0.9]
+
+  motion_blur:
+    enabled: false
+    kernel_size: [3, 5]
+    angle: [-180.0, 180.0]
+
+  downsample:
+    enabled: false
+    scale: [1.0, 1.0]
+    down_interpolation: area
+    up_interpolation: cubic
+
+  gaussian_noise:
+    enabled: true
+    sigma: [0.3, 3.0]
+
+  poisson_noise:
+    enabled: false
+    peak: [60.0, 120.0]
+
+  # Conservative heuristic profiles inspired by the supplied LLS degrader.
+  # One profile and one parameter set are shared by every frame in a clip.
+  device_style:
+    enabled: true
+    profile: random
+    profiles:
+      OPPO-like:
+        rgb_gain:
+          r: [1.005, 1.025]
+          g: [0.995, 1.015]
+          b: [0.975, 1.000]
+        rgb_bias:
+          r: [-1.0, 2.0]
+          g: [-1.5, 1.5]
+          b: [-2.0, 1.0]
+        contrast_multiplier: [0.97, 1.03]
+        brightness_offset: [-3.0, 2.0]
+        chroma_multiplier: [1.00, 1.06]
+      iPhone-like:
+        rgb_gain:
+          r: [0.990, 1.015]
+          g: [0.995, 1.015]
+          b: [0.995, 1.025]
+        rgb_bias:
+          r: [-1.5, 1.5]
+          g: [-1.0, 1.5]
+          b: [-1.0, 2.0]
+        contrast_multiplier: [0.98, 1.04]
+        brightness_offset: [-2.0, 3.0]
+        chroma_multiplier: [0.97, 1.04]
+
+  color_distortion:
+    enabled: true
+    saturation: [0.97, 1.03]
+    hue_shift: [-1.5, 1.5]
+
+  brightness_contrast:
+    enabled: true
+    brightness: [-3.0, 3.0]
+    contrast: [0.97, 1.03]
+
+  gamma:
+    enabled: true
+    gamma: [0.97, 1.03]
+
+  sharpen:
+    enabled: false
+    amount: [0.0, 0.25]
+    radius: [0.5, 1.0]
+
+  jpeg:
+    enabled: false
+    quality: [92, 100]
+
+  video_compression:
+    enabled: true
+    codec: libx264
+    crf: [20, 26]
+    preset: medium
+    keyint: 30
+
+split:
+  train: 1.0
+  val: 0.0
+  test: 0.0
