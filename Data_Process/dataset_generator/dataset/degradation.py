@@ -1,3 +1,5 @@
+"""Create reproducible low-quality frames with configurable degradations."""
+
 from __future__ import annotations
 
 import subprocess
@@ -8,8 +10,8 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 import cv2
 import numpy as np
 
-from utils.ffmpeg_utils import passthrough_fps_args
-from utils.image_utils import INTERPOLATIONS
+from .ffmpeg import passthrough_fps_args
+from .images import INTERPOLATIONS
 
 
 def _bounds(spec: Any) -> Tuple[float, float]:

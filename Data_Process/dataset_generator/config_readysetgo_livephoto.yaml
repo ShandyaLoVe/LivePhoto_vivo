@@ -1,3 +1,5 @@
+# Example configuration for the ReadySetGo 4K RAW YUV sequence.
+
 input_dir: /Volumes/DATA1/video_4K/ReadySetGo_3840x2160_120fps_420_10bit_YUV_RAW
 output_dir: /Volumes/DATA1/video_4K/ReadySetGo_dataset_45f_3s_livephoto
 

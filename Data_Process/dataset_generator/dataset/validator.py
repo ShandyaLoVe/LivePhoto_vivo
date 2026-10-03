@@ -1,3 +1,5 @@
+"""Validate dataset layout, metadata, image alignment, and split isolation."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,7 +8,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import numpy as np
 
 from dataset.metadata import read_json
-from utils.image_utils import decode_image
+from .images import decode_image
 
 
 class ErrorCollector:

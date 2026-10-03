@@ -1,8 +1,10 @@
+"""Stream source frames into fixed-size frame-based or time-based clips."""
+
 from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, Iterable, Iterator, List, Optional, Tuple
+from typing import Deque, Dict, Iterable, Iterator, List, Optional, Tuple
 
 import numpy as np
 
@@ -108,8 +110,14 @@ def iter_time_clips(
     if offsets[-1] >= window_frames:
         raise ValueError("The target sampling grid exceeds the requested clip duration")
 
-    buffer: Deque[Tuple[int, np.ndarray]] = deque()
-    tail: Deque[Tuple[int, np.ndarray]] = deque(maxlen=window_frames)
+    # Keep only frames that lie on a requested target-FPS grid. A 120 FPS,
+    # three-second source window otherwise retains 360 full-resolution frames
+    # even though only 45 are used by the output clip.
+    active: Dict[int, Dict[int, np.ndarray]] = {}
+    tail: Optional[Deque[Tuple[int, np.ndarray]]] = (
+        deque(maxlen=window_frames) if not drop_last else None
+    )
+    offset_set = set(offsets)
     next_start = 0
     last_yielded_start: Optional[int] = None
     last_index = -1
@@ -118,25 +126,33 @@ def iter_time_clips(
         if index != last_index + 1:
             raise ValueError("Decoded frame indices must be contiguous")
         last_index = index
-        buffer.append((index, frame))
-        tail.append((index, frame))
+        if tail is not None:
+            tail.append((index, frame))
 
-        while index >= next_start + window_frames - 1:
-            by_index = {item_index: item_frame for item_index, item_frame in buffer}
-            indices = [next_start + offset for offset in offsets]
-            if all(item_index in by_index for item_index in indices):
-                yield Clip(
-                    [by_index[item_index] for item_index in indices],
-                    indices,
-                    window_start_frame=next_start,
-                    window_end_frame=next_start + window_frames - 1,
-                )
-                last_yielded_start = next_start
+        while next_start <= index:
+            active[next_start] = {}
             next_start += stride_frames
-            while buffer and buffer[0][0] < next_start:
-                buffer.popleft()
 
-    if not drop_last and last_index + 1 >= window_frames:
+        completed = []
+        for start, selected in active.items():
+            relative = index - start
+            if relative in offset_set:
+                selected[index] = frame
+            if index >= start + window_frames - 1:
+                indices = [start + offset for offset in offsets]
+                if all(item_index in selected for item_index in indices):
+                    yield Clip(
+                        [selected[item_index] for item_index in indices],
+                        indices,
+                        window_start_frame=start,
+                        window_end_frame=start + window_frames - 1,
+                    )
+                    last_yielded_start = start
+                completed.append(start)
+        for start in completed:
+            del active[start]
+
+    if not drop_last and last_index + 1 >= window_frames and tail is not None:
         tail_start = last_index - window_frames + 1
         if tail_start != last_yielded_start:
             by_index = {item_index: item_frame for item_index, item_frame in tail}

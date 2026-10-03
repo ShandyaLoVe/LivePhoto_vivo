@@ -1,3 +1,5 @@
+"""Exercise deterministic sampling, degradation, generation, and validation."""
+
 from __future__ import annotations
 
 import copy
@@ -15,8 +17,9 @@ from dataset.clip_sampler import iter_clips, iter_time_clips
 from dataset.config import DEFAULT_CONFIG
 from dataset.degradation import degrade_clip
 from dataset.metadata import read_json
+from dataset.splitting import assign_splits
 from dataset.validator import validate_dataset
-from generate_dataset import _split_assignments, generate_dataset
+from dataset.generator import generate_dataset
 
 
 class ClipSamplerTest(unittest.TestCase):
@@ -28,8 +31,8 @@ class ClipSamplerTest(unittest.TestCase):
     def test_video_level_split_is_deterministic(self) -> None:
         names = ["video_%02d.mp4" % index for index in range(10)]
         ratios = {"train": 0.8, "val": 0.1, "test": 0.1}
-        first = _split_assignments(names, ratios, 42)
-        second = _split_assignments(names, ratios, 42)
+        first = assign_splits(names, ratios, 42)
+        second = assign_splits(names, ratios, 42)
         self.assertEqual(first, second)
         self.assertEqual(list(first.values()).count("train"), 8)
         self.assertEqual(list(first.values()).count("val"), 1)
@@ -51,6 +54,22 @@ class ClipSamplerTest(unittest.TestCase):
         self.assertEqual(clips[0].frame_indices[-1], 147)
         self.assertEqual((clips[0].window_start_frame, clips[0].window_end_frame), (0, 149))
         self.assertEqual((clips[-1].window_start_frame, clips[-1].window_end_frame), (450, 599))
+
+    def test_time_sampling_supports_overlapping_windows_and_tail_alignment(self) -> None:
+        frames = [(index, np.zeros((1, 1, 3), dtype=np.uint8)) for index in range(18)]
+        clips = list(iter_time_clips(
+            frames,
+            num_frames=5,
+            source_fps=10.0,
+            target_fps=5.0,
+            clip_duration_seconds=1.0,
+            clip_stride_seconds=0.5,
+            drop_last=False,
+        ))
+        self.assertEqual(
+            [clip.frame_indices for clip in clips],
+            [[0, 2, 4, 6, 8], [5, 7, 9, 11, 13], [8, 10, 12, 14, 16]],
+        )
 
     def test_device_style_is_clip_consistent_and_reproducible(self) -> None:
         frame = np.full((48, 64, 3), (80, 120, 180), dtype=np.uint8)

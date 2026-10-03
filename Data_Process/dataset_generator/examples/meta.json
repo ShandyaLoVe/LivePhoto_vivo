@@ -1,4 +1,5 @@
 {
+  "_description": "Example metadata for one aligned GT/REF/LQ clip.",
   "schema_version": 2,
   "clip_id": "clip_000001",
   "source_video": "scene_a/video_001.mp4",

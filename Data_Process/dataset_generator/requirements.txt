@@ -1,4 +1,5 @@
+# Runtime dependencies for direct script usage or editable installation.
+
 numpy>=1.23.0,<3.0
 opencv-python-headless>=4.8.0,<5.0
 PyYAML>=6.0,<7.0
-

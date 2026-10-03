@@ -1,3 +1,5 @@
+"""Apply aligned spatial transforms and Unicode-safe PNG input/output."""
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -7,7 +9,7 @@ from typing import Any, Dict, Mapping, Sequence, Tuple
 import cv2
 import numpy as np
 
-from dataset.config import output_size
+from .config import output_size
 
 
 INTERPOLATIONS = {
@@ -79,6 +81,15 @@ def make_spatial_plan(frame: np.ndarray, config: Mapping[str, Any], rng: np.rand
 def apply_spatial_plan(frame: np.ndarray, plan: SpatialPlan) -> np.ndarray:
     if frame.shape[:2] != (plan.source_height, plan.source_width):
         raise ValueError("Resolution changed inside one source video")
+    if (
+        plan.resized_height == plan.source_height
+        and plan.resized_width == plan.source_width
+        and plan.crop_top == 0
+        and plan.crop_left == 0
+        and plan.output_height == plan.source_height
+        and plan.output_width == plan.source_width
+    ):
+        return np.ascontiguousarray(frame)
     resized = cv2.resize(
         frame,
         (plan.resized_width, plan.resized_height),

@@ -1,3 +1,5 @@
+<!-- Usage, architecture, and configuration guide for the dataset generator. -->
+
 # 视频训练数据集生成器
 
 该工具把不同封装、帧率和分辨率的视频转换为严格对齐的训练样本：
@@ -23,6 +25,15 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ffmpeg -version
 ffprobe -version
+```
+
+如需在其他目录直接调用命令，推荐以 editable 模式安装：
+
+```bash
+pip install -e .
+livephoto-generate --help
+livephoto-validate --help
+livephoto-regenerate-lq --help
 ```
 
 ## 快速开始
@@ -60,6 +71,18 @@ python generate_dataset.py \
 ```
 
 YAML 会先加载，显式 CLI 参数随后覆盖 YAML。若输出目录已经含有 `train/val/test/logs`，程序默认拒绝混写；确认需要替换时使用 `--overwrite` 或设置 `overwrite: true`。
+
+也可以把核心能力当作 Python 包使用，命令行解析不会混入业务逻辑：
+
+```python
+from pathlib import Path
+
+from dataset import generate_dataset, load_config
+
+config = load_config(Path("config.yaml"))
+summary = generate_dataset(config)
+print(summary["validation"]["valid"])
+```
 
 ## 从输入到 clip 的完整示例
 
@@ -323,22 +346,28 @@ python -m unittest discover -s tests -v
 
 ```text
 dataset_generator/
+├── setup.cfg                   # package metadata and console commands
+├── setup.py                    # old-pip editable-install shim
 ├── generate_dataset.py
+├── regenerate_lq.py
 ├── validate_dataset.py
 ├── config.yaml
 ├── dataset/
+│   ├── cli.py                 # argument parsing only
 │   ├── config.py
+│   ├── generator.py           # end-to-end orchestration
+│   ├── regenerator.py         # atomic LQ regeneration
+│   ├── splitting.py
 │   ├── video_reader.py
+│   ├── ffmpeg.py
 │   ├── clip_sampler.py
+│   ├── images.py
 │   ├── reference_selector.py
 │   ├── degradation.py
 │   ├── writer.py
 │   ├── metadata.py
+│   ├── seeding.py
 │   └── validator.py
-├── utils/
-│   ├── ffmpeg_utils.py
-│   ├── image_utils.py
-│   └── seed.py
 ├── tests/test_minimal.py
 ├── examples/meta.json
 └── requirements.txt

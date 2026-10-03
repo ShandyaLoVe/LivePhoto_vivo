@@ -1,8 +1,12 @@
+# Ignore local environments, generated datasets, caches, and staging data.
+
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+*.egg-info/
+build/
+dist/
 videos/
 dataset_output/
 .staging-*/
-

@@ -1,3 +1,5 @@
+"""Read and atomically write UTF-8 JSON metadata files."""
+
 from __future__ import annotations
 
 import json
@@ -34,4 +36,3 @@ def write_json(path: Path, payload: Mapping[str, Any]) -> None:
 def read_json(path: Path) -> Any:
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
-

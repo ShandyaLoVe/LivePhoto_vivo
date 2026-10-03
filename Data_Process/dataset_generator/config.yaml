@@ -1,3 +1,5 @@
+# Default configuration for general video dataset generation.
+
 # Paths are resolved from the working directory where the command is run.
 input_dir: ./videos
 output_dir: ./dataset_output

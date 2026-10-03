@@ -1,3 +1,5 @@
+"""Derive stable random seeds and initialize supported random generators."""
+
 from __future__ import annotations
 
 import hashlib
@@ -16,4 +18,3 @@ def derive_seed(base_seed: int, *parts: Any) -> int:
 def seed_everything(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed % (2 ** 32))
-

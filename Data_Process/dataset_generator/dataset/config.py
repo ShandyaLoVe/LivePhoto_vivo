@@ -1,3 +1,5 @@
+"""Define, load, merge, and validate dataset generation configuration."""
+
 from __future__ import annotations
 
 import copy

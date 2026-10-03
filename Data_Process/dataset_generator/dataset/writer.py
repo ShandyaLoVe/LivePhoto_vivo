@@ -1,3 +1,5 @@
+"""Atomically write aligned GT, reference, LQ, and metadata clip assets."""
+
 from __future__ import annotations
 
 import os
@@ -9,7 +11,7 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 
 from dataset.metadata import write_json
-from utils.image_utils import encode_png
+from .images import encode_png
 
 
 def write_clip(
@@ -43,4 +45,3 @@ def write_clip(
         if temp_dir.exists():
             shutil.rmtree(str(temp_dir), ignore_errors=True)
         raise
-

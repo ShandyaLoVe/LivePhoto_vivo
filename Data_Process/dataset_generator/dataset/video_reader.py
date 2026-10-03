@@ -1,3 +1,5 @@
+"""Decode video frames once in display order through an FFmpeg subprocess."""
+
 from __future__ import annotations
 
 import subprocess
@@ -8,7 +10,7 @@ from typing import Iterator, Optional, Tuple
 import cv2
 import numpy as np
 
-from utils.ffmpeg_utils import VideoInfo, passthrough_fps_args, probe_video
+from .ffmpeg import VideoInfo, passthrough_fps_args, probe_video
 
 
 class VideoDecodeError(RuntimeError):

@@ -1,3 +1,5 @@
+"""Discover and inspect encoded videos and headerless RAW YUV inputs."""
+
 from __future__ import annotations
 
 import json

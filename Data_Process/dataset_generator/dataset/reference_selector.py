@@ -1,3 +1,5 @@
+"""Select one transformed GT frame as a clip's reference image."""
+
 from __future__ import annotations
 
 from typing import Sequence, Tuple
@@ -32,4 +34,3 @@ def select_reference(
     else:
         raise ValueError("Unsupported reference strategy: %s" % strategy)
     return frames[position].copy(), int(frame_indices[position]), position
-
