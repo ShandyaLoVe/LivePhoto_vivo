@@ -16,8 +16,8 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 import cv2
 import numpy as np
 
-from dataset.clip_sampler import iter_clips
-from dataset.config import load_config, output_size, validate_config
+from dataset.clip_sampler import iter_clips, iter_time_clips
+from dataset.config import load_config, lq_output_size, output_size, validate_config
 from dataset.degradation import degrade_clip
 from dataset.metadata import read_json, write_json
 from dataset.reference_selector import select_reference
@@ -70,13 +70,26 @@ def _process_video(task: Mapping[str, Any]) -> Dict[str, Any]:
         clip_cfg = config["clip"]
         stream = reader.iter_frames()
         try:
-            sampled = iter_clips(
-                stream,
-                num_frames=int(clip_cfg["num_frames"]),
-                frame_interval=int(clip_cfg["frame_interval"]),
-                clip_stride=int(clip_cfg["clip_stride"]),
-                drop_last=bool(clip_cfg.get("drop_last", True)),
-            )
+            time_sampling = clip_cfg.get("sampling_fps") is not None
+            if time_sampling:
+                duration = float(clip_cfg["clip_duration_seconds"])
+                sampled = iter_time_clips(
+                    stream,
+                    num_frames=int(clip_cfg["num_frames"]),
+                    source_fps=info.fps,
+                    target_fps=float(clip_cfg["sampling_fps"]),
+                    clip_duration_seconds=duration,
+                    clip_stride_seconds=float(clip_cfg.get("clip_stride_seconds") or duration),
+                    drop_last=bool(clip_cfg.get("drop_last", True)),
+                )
+            else:
+                sampled = iter_clips(
+                    stream,
+                    num_frames=int(clip_cfg["num_frames"]),
+                    frame_interval=int(clip_cfg["frame_interval"]),
+                    clip_stride=int(clip_cfg["clip_stride"]),
+                    drop_last=bool(clip_cfg.get("drop_last", True)),
+                )
             for local_index, clip in enumerate(sampled):
                 clip_seed = derive_seed(video_seed, clip.start_frame, local_index)
                 rng = np.random.default_rng(clip_seed)
@@ -91,37 +104,62 @@ def _process_video(task: Mapping[str, Any]) -> Dict[str, Any]:
                     gt_frames,
                     config["degradation"],
                     rng,
-                    fps=info.fps,
+                    fps=float(clip_cfg["sampling_fps"]) if time_sampling else info.fps,
                     ffmpeg_bin=str(config["ffmpeg_bin"]),
+                    output_size=lq_output_size(config["image"]),
+                    output_interpolation=str(config["image"].get("lq_interpolation", "area")),
                 )
                 local_name = "clip_local_%06d" % local_index
                 metadata = {
-                    "schema_version": 1,
+                    "schema_version": 2,
                     "clip_id": local_name,
                     "source_video": source_video,
                     "source_start_frame": clip.start_frame,
                     "source_end_frame": clip.end_frame,
                     "frame_indices": clip.frame_indices,
-                    "frame_interval": int(clip_cfg["frame_interval"]),
-                    "fps": info.fps,
+                    "sampling_mode": "time" if time_sampling else "frame_interval",
+                    "frame_interval": None if time_sampling else int(clip_cfg["frame_interval"]),
+                    "fps": float(clip_cfg["sampling_fps"]) if time_sampling else info.fps,
+                    "source_fps": info.fps,
                     "avg_frame_rate": info.avg_frame_rate,
                     "nominal_frame_rate": info.r_frame_rate,
                     "num_frames": len(gt_frames),
+                    "source_window_start_frame": clip.window_start_frame,
+                    "source_window_end_frame": clip.window_end_frame,
                     "reference_frame_index": reference_frame_index,
                     "reference_position": reference_position,
                     "reference_strategy": str(config["reference"]["strategy"]),
                     "resolution": [int(gt_frames[0].shape[0]), int(gt_frames[0].shape[1])],
+                    "gt_resolution": [int(gt_frames[0].shape[0]), int(gt_frames[0].shape[1])],
+                    "ref_resolution": [int(reference.shape[0]), int(reference.shape[1])],
+                    "lq_resolution": [int(lq_frames[0].shape[0]), int(lq_frames[0].shape[1])],
+                    "gt_preserves_source_resolution": bool(config["image"].get("preserve_source_resolution", False)),
                     "source_resolution": [info.display_height, info.display_width],
                     "source_codec": info.codec_name,
                     "source_pixel_format": info.pix_fmt,
+                    "source_is_raw_yuv": info.is_raw_yuv,
                     "source_rotation": info.rotation,
                     "decode_pixel_format": "bgr24",
                     "spatial_transform": spatial_plan.to_dict(),
                     "degradation": degradation_meta,
                     "seed": clip_seed,
                 }
+                if time_sampling:
+                    metadata.update({
+                        "target_fps": float(clip_cfg["sampling_fps"]),
+                        "clip_duration_seconds": float(clip_cfg["clip_duration_seconds"]),
+                        "clip_stride_seconds": float(clip_cfg.get("clip_stride_seconds") or clip_cfg["clip_duration_seconds"]),
+                        "clip_time_start_seconds": float(clip.window_start_frame) / info.fps,
+                        "clip_time_end_seconds": float(clip.window_end_frame + 1) / info.fps,
+                        "source_sample_timestamps_seconds": [float(index) / info.fps for index in clip.frame_indices],
+                    })
                 clip_path = write_clip(video_stage, local_name, gt_frames, reference, lq_frames, metadata)
                 clip_paths.append(str(clip_path))
+            if info.is_raw_yuv and info.nb_frames is not None and reader.decoded_frames != info.nb_frames:
+                raise RuntimeError(
+                    "RAW YUV decode ended at %d/%d frames; refusing an incomplete dataset"
+                    % (reader.decoded_frames, info.nb_frames)
+                )
         except VideoDecodeError as exc:
             if not bool(config["video"].get("allow_partial_decode", True)) or not clip_paths:
                 raise
@@ -227,13 +265,20 @@ def generate_dataset(config: Dict[str, Any]) -> Dict[str, Any]:
         video_cfg.get("extensions", []),
         bool(video_cfg.get("scan_all_files", True)),
         excluded_dir=output_dir,
+        raw_yuv_sidecar_suffix=str(video_cfg.get("raw_yuv", {}).get("sidecar_suffix", ".json")),
+        excluded_dir_names=video_cfg.get("exclude_dir_names", []),
     )
     probe_failures: List[Dict[str, Any]] = []
     probed: List[Tuple[str, Path, VideoInfo]] = []
     for path in candidates:
         source_video = path.relative_to(input_dir).as_posix()
         try:
-            info = probe_video(path, str(config["ffprobe_bin"]))
+            info = probe_video(
+                path,
+                str(config["ffprobe_bin"]),
+                raw_yuv_config=video_cfg.get("raw_yuv", {}),
+                source_key=source_video,
+            )
             probed.append((source_video, path, info))
         except Exception as exc:
             probe_failures.append({"stage": "probe", "source_video": source_video, "error": str(exc)})
@@ -290,7 +335,8 @@ def generate_dataset(config: Dict[str, Any]) -> Dict[str, Any]:
 
     validation = validate_dataset(
         output_dir,
-        expected_size=output_size(config["image"]),
+        expected_size=None if config["image"].get("preserve_source_resolution", False) else output_size(config["image"]),
+        expected_lq_size=lq_output_size(config["image"]),
         expected_num_frames=int(config["clip"]["num_frames"]),
     )
     summary = {
@@ -328,6 +374,11 @@ def _parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     parser.add_argument("--clip-stride", type=int, help="Override clip.clip_stride")
     parser.add_argument("--num-workers", type=int, help="Override num_workers")
     parser.add_argument("--seed", type=int, help="Override seed")
+    parser.add_argument("--yuv-width", type=int, help="Default width for raw .yuv inputs")
+    parser.add_argument("--yuv-height", type=int, help="Default height for raw .yuv inputs")
+    parser.add_argument("--yuv-pix-fmt", help="Default FFmpeg pixel format for raw .yuv inputs")
+    parser.add_argument("--yuv-fps", type=float, help="Default FPS for raw .yuv inputs")
+    parser.add_argument("--yuv-rotation", type=int, choices=(0, 90, 180, 270), help="Default rotation for raw .yuv inputs")
     parser.add_argument("--overwrite", action="store_true", help="Replace train/val/test/logs in output_dir")
     drop_group = parser.add_mutually_exclusive_group()
     drop_group.add_argument("--drop-last", dest="drop_last", action="store_true", help="Drop an incomplete tail clip")
@@ -349,6 +400,17 @@ def _apply_cli_overrides(config: Dict[str, Any], args: argparse.Namespace) -> No
         config["clip"]["drop_last"] = args.drop_last
     if args.overwrite:
         config["overwrite"] = True
+    raw_yuv = config["video"]["raw_yuv"]
+    for argument, key in (
+        ("yuv_width", "width"),
+        ("yuv_height", "height"),
+        ("yuv_pix_fmt", "pix_fmt"),
+        ("yuv_fps", "fps"),
+        ("yuv_rotation", "rotation"),
+    ):
+        value = getattr(args, argument)
+        if value is not None:
+            raw_yuv[key] = value
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:

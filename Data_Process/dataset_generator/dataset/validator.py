@@ -32,6 +32,7 @@ def _entries(path: Path) -> List[Path]:
 def validate_dataset(
     dataset_root: Path,
     expected_size: Optional[Tuple[int, int]] = None,
+    expected_lq_size: Optional[Tuple[int, int]] = None,
     expected_num_frames: Optional[int] = None,
 ) -> Dict[str, Any]:
     errors = ErrorCollector()
@@ -97,6 +98,32 @@ def validate_dataset(
                 errors.add("%s: frame_indices must be strictly increasing integers" % prefix)
             elif meta.get("source_start_frame") != indices[0] or meta.get("source_end_frame") != indices[-1]:
                 errors.add("%s: source start/end do not match frame_indices" % prefix)
+            elif meta.get("sampling_mode", "frame_interval") == "time":
+                try:
+                    source_fps = float(meta.get("source_fps", meta["fps"]))
+                    target_fps = float(meta["target_fps"])
+                    duration = float(meta["clip_duration_seconds"])
+                    window_start = int(meta["source_window_start_frame"])
+                    window_end = int(meta["source_window_end_frame"])
+                    expected_window_frames = int(round(source_fps * duration))
+                    expected_indices = [
+                        window_start + int(np.floor(index * source_fps / target_fps + 0.5))
+                        for index in range(num_frames)
+                    ]
+                    if abs(num_frames - target_fps * duration) > 1e-6:
+                        errors.add("%s: num_frames does not equal target_fps * duration" % prefix)
+                    if window_end - window_start + 1 != expected_window_frames:
+                        errors.add("%s: source window does not match clip duration" % prefix)
+                    if indices != expected_indices:
+                        errors.add("%s: frame_indices do not match the target-FPS time grid" % prefix)
+                    actual_duration = float(meta["clip_time_end_seconds"]) - float(meta["clip_time_start_seconds"])
+                    if abs(actual_duration - duration) > 1e-6:
+                        errors.add("%s: clip timestamps do not span the requested duration" % prefix)
+                    timestamps = meta.get("source_sample_timestamps_seconds")
+                    if not isinstance(timestamps, list) or len(timestamps) != num_frames:
+                        errors.add("%s: source sample timestamps are invalid" % prefix)
+                except (KeyError, TypeError, ValueError, ZeroDivisionError) as exc:
+                    errors.add("%s: invalid time-sampling metadata: %s" % (prefix, exc))
             elif len(indices) > 1 and any(
                 current - previous != int(meta.get("frame_interval", -1))
                 for previous, current in zip(indices, indices[1:])
@@ -105,21 +132,54 @@ def validate_dataset(
             if isinstance(indices, list) and meta.get("reference_frame_index") not in indices:
                 errors.add("%s: reference_frame_index is not a GT frame" % prefix)
 
-            resolution = meta.get("resolution")
+            resolution = meta.get("gt_resolution", meta.get("resolution"))
             if not (isinstance(resolution, list) and len(resolution) == 2):
-                errors.add("%s: resolution metadata is invalid" % prefix)
-                resolution_tuple = None
+                errors.add("%s: GT resolution metadata is invalid" % prefix)
+                gt_resolution = None
             else:
-                resolution_tuple = (int(resolution[0]), int(resolution[1]))
-                if expected_size is not None and resolution_tuple != expected_size:
-                    errors.add("%s: resolution %s does not match configured %s" % (prefix, resolution_tuple, expected_size))
+                gt_resolution = (int(resolution[0]), int(resolution[1]))
+                if expected_size is not None and gt_resolution != expected_size:
+                    errors.add("%s: GT resolution %s does not match configured %s" % (prefix, gt_resolution, expected_size))
+                legacy_resolution = meta.get("resolution")
+                if legacy_resolution is not None and list(gt_resolution) != legacy_resolution:
+                    errors.add("%s: resolution and gt_resolution disagree" % prefix)
+
+            ref_value = meta.get("ref_resolution", resolution)
+            if not (isinstance(ref_value, list) and len(ref_value) == 2):
+                errors.add("%s: REF resolution metadata is invalid" % prefix)
+                ref_resolution = None
+            else:
+                ref_resolution = (int(ref_value[0]), int(ref_value[1]))
+                if gt_resolution is not None and ref_resolution != gt_resolution:
+                    errors.add("%s: REF resolution must equal GT resolution" % prefix)
+
+            lq_value = meta.get("lq_resolution", resolution)
+            if not (isinstance(lq_value, list) and len(lq_value) == 2):
+                errors.add("%s: LQ resolution metadata is invalid" % prefix)
+                lq_resolution = None
+            else:
+                lq_resolution = (int(lq_value[0]), int(lq_value[1]))
+                if expected_lq_size is not None and lq_resolution != expected_lq_size:
+                    errors.add("%s: LQ resolution %s does not match configured %s" % (prefix, lq_resolution, expected_lq_size))
+
+            if meta.get("gt_preserves_source_resolution"):
+                source_resolution = meta.get("source_resolution")
+                if not (isinstance(source_resolution, list) and len(source_resolution) == 2):
+                    errors.add("%s: source_resolution metadata is invalid" % prefix)
+                elif gt_resolution != (int(source_resolution[0]), int(source_resolution[1])):
+                    errors.add("%s: GT does not preserve source resolution" % prefix)
 
             decoded_gt = []
             for kind, files in (("GT", gt_files), ("LQ", lq_files), ("REF", ref_files)):
+                kind_resolution = {
+                    "GT": gt_resolution,
+                    "REF": ref_resolution,
+                    "LQ": lq_resolution,
+                }[kind]
                 for image_path in files:
                     try:
                         image = decode_image(image_path)
-                        if resolution_tuple is not None and image.shape[:2] != resolution_tuple:
+                        if kind_resolution is not None and image.shape[:2] != kind_resolution:
                             errors.add("%s: %s/%s has resolution %s" % (prefix, kind, image_path.name, image.shape[:2]))
                         if kind == "GT":
                             decoded_gt.append(image)

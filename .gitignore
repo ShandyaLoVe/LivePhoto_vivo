@@ -1,0 +1,47 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Python bytecode and tooling caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE/editor state
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local environment and logs
+.env
+.env.*
+!.env.example
+*.log
+
+# Build/package artifacts
+build/
+dist/
+*.egg-info/
+
+# Dataset generator local inputs, outputs and staging data
+/Data_Process/dataset_generator/videos/
+/Data_Process/dataset_generator/dataset_output/
+/Data_Process/dataset_generator/outputs/
+/Data_Process/dataset_generator/.staging-*/
+
+# Temporary files
+*.tmp
+*.temp
+~$*

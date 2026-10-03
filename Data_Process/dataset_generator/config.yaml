@@ -9,17 +9,43 @@ ffmpeg_bin: ffmpeg
 ffprobe_bin: ffprobe
 
 video:
-  extensions: [mp4, mov, mkv, avi, webm, m4v, mpeg, mpg, ts]
+  extensions: [mp4, mov, mkv, avi, webm, m4v, mpeg, mpg, ts, yuv]
   # true: inspect every regular file with ffprobe; suffixes are never trusted.
   scan_all_files: true
+  exclude_dir_names: []
   # Keep already completed clips if corruption appears later in a video.
   allow_partial_decode: true
+
+  # A raw .yuv file has no header. Set global defaults here, add a per-file
+  # override below, or create <video>.yuv.json beside each file.
+  raw_yuv:
+    enabled: true
+    width: null
+    height: null
+    pix_fmt: yuv420p
+    fps: 30.0
+    rotation: 0
+    use_sidecar: true
+    sidecar_suffix: .json
+    files: {}
+    # Per-file example (path is relative to input_dir):
+    # files:
+    #   camera_a/clip001.yuv:
+    #     width: 1920
+    #     height: 1080
+    #     pix_fmt: yuv420p10le
+    #     fps: 30
 
 clip:
   num_frames: 7
   frame_interval: 1
   clip_stride: 7
   drop_last: true
+  # To sample by real duration, set all three fields below. Example:
+  # 45 frames at 15 FPS = one 3-second clip.
+  sampling_fps: null
+  clip_duration_seconds: null
+  clip_stride_seconds: null
 
 image:
   width: 512
@@ -28,6 +54,12 @@ image:
   # overrides width/height as the final output size.
   gt_width: null
   gt_height: null
+  # Set true to keep each source video's native dimensions for GT/REF.
+  preserve_source_resolution: false
+  # Leave null to make LQ match GT, or set a distinct training resolution.
+  lq_width: null
+  lq_height: null
+  lq_interpolation: area
   crop_size: null
   keep_aspect_ratio: true
   random_crop: true
@@ -102,4 +134,3 @@ split:
   train: 0.8
   val: 0.1
   test: 0.1
-

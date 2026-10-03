@@ -17,6 +17,7 @@
   "source_resolution": [1080, 1920],
   "source_codec": "h264",
   "source_pixel_format": "yuv420p",
+  "source_is_raw_yuv": false,
   "source_rotation": 0,
   "decode_pixel_format": "bgr24",
   "spatial_transform": {
@@ -65,4 +66,3 @@
   },
   "seed": 246813579
 }
-

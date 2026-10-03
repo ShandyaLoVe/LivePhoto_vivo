@@ -38,7 +38,10 @@ class SpatialPlan:
 
 def make_spatial_plan(frame: np.ndarray, config: Mapping[str, Any], rng: np.random.Generator) -> SpatialPlan:
     source_height, source_width = frame.shape[:2]
-    target_height, target_width = output_size(config)
+    if bool(config.get("preserve_source_resolution", False)):
+        target_height, target_width = source_height, source_width
+    else:
+        target_height, target_width = output_size(config)
     keep_aspect = bool(config.get("keep_aspect_ratio", True))
     interpolation = str(config.get("interpolation", "lanczos")).lower()
     if interpolation not in INTERPOLATIONS:

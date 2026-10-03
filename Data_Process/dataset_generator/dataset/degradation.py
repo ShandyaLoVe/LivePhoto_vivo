@@ -3,7 +3,7 @@ from __future__ import annotations
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
@@ -123,7 +123,14 @@ def _motion_kernel(size: int, angle: float) -> np.ndarray:
     return kernel / total if total > 0 else kernel
 
 
-def _apply_frame(image: np.ndarray, params: Mapping[str, Any], config: Mapping[str, Any], rng: np.random.Generator) -> np.ndarray:
+def _apply_frame(
+    image: np.ndarray,
+    params: Mapping[str, Any],
+    config: Mapping[str, Any],
+    rng: np.random.Generator,
+    output_size: Optional[Tuple[int, int]] = None,
+    output_interpolation: str = "area",
+) -> np.ndarray:
     value = image.astype(np.float32)
     sigma = float(params.get("blur_sigma", 0.0))
     if sigma > 1e-6:
@@ -142,6 +149,20 @@ def _apply_frame(image: np.ndarray, params: Mapping[str, Any], config: Mapping[s
             raise ValueError("Unsupported downsample interpolation")
         value = cv2.resize(value, (small_width, small_height), interpolation=INTERPOLATIONS[down_name])
         value = cv2.resize(value, (width, height), interpolation=INTERPOLATIONS[up_name])
+
+    if output_size is not None:
+        output_height, output_width = output_size
+        if output_height <= 0 or output_width <= 0:
+            raise ValueError("LQ output dimensions must be > 0")
+        interpolation_name = str(output_interpolation).lower()
+        if interpolation_name not in INTERPOLATIONS:
+            raise ValueError("Unsupported LQ resize interpolation: %s" % interpolation_name)
+        if value.shape[:2] != (output_height, output_width):
+            value = cv2.resize(
+                value,
+                (output_width, output_height),
+                interpolation=INTERPOLATIONS[interpolation_name],
+            )
 
     noise_sigma = float(params.get("gaussian_noise_sigma", 0.0))
     if noise_sigma > 0:
@@ -225,6 +246,8 @@ def degrade_clip(
     rng: np.random.Generator,
     fps: float,
     ffmpeg_bin: str = "ffmpeg",
+    output_size: Optional[Tuple[int, int]] = None,
+    output_interpolation: str = "area",
 ) -> Tuple[List[np.ndarray], Dict[str, Any]]:
     if not gt_frames:
         raise ValueError("Cannot degrade an empty clip")
@@ -235,7 +258,7 @@ def degrade_clip(
     frame_params: List[Dict[str, Any]] = []
     for frame in gt_frames:
         params = _jitter_params(base, config, variation, rng) if base is not None else _operation_params(config, rng)
-        output.append(_apply_frame(frame, params, config, rng))
+        output.append(_apply_frame(frame, params, config, rng, output_size, output_interpolation))
         frame_params.append(params)
 
     video_meta = None
@@ -249,8 +272,13 @@ def degrade_clip(
         "base_parameters": base,
         "frame_parameters": frame_params,
         "video_compression": video_meta,
+        "lq_resize": {
+            "height": int(output[0].shape[0]),
+            "width": int(output[0].shape[1]),
+            "interpolation": str(output_interpolation),
+        },
         "pipeline_order": [
-            "gaussian_blur", "motion_blur", "downsample_upsample", "noise",
+            "gaussian_blur", "motion_blur", "downsample_upsample", "lq_resize", "noise",
             "color", "brightness_contrast", "gamma", "sharpen", "jpeg", "video_compression",
         ],
     }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import shutil
 import subprocess
 import tempfile
@@ -9,7 +10,7 @@ from pathlib import Path
 
 import numpy as np
 
-from dataset.clip_sampler import iter_clips
+from dataset.clip_sampler import iter_clips, iter_time_clips
 from dataset.config import DEFAULT_CONFIG
 from dataset.metadata import read_json
 from dataset.validator import validate_dataset
@@ -31,6 +32,23 @@ class ClipSamplerTest(unittest.TestCase):
         self.assertEqual(list(first.values()).count("train"), 8)
         self.assertEqual(list(first.values()).count("val"), 1)
         self.assertEqual(list(first.values()).count("test"), 1)
+
+    def test_45_frames_span_exactly_three_seconds_at_15_fps(self) -> None:
+        frames = [(index, np.zeros((1, 1, 3), dtype=np.uint8)) for index in range(600)]
+        clips = list(iter_time_clips(
+            frames,
+            num_frames=45,
+            source_fps=50.0,
+            target_fps=15.0,
+            clip_duration_seconds=3.0,
+            clip_stride_seconds=3.0,
+            drop_last=True,
+        ))
+        self.assertEqual(len(clips), 4)
+        self.assertEqual(clips[0].frame_indices[:5], [0, 3, 7, 10, 13])
+        self.assertEqual(clips[0].frame_indices[-1], 147)
+        self.assertEqual((clips[0].window_start_frame, clips[0].window_end_frame), (0, 149))
+        self.assertEqual((clips[-1].window_start_frame, clips[-1].window_end_frame), (450, 599))
 
 
 @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg/ffprobe are required")
@@ -57,18 +75,85 @@ class EndToEndTest(unittest.TestCase):
                 "seed": 123,
             })
             config["clip"].update({"num_frames": 5, "frame_interval": 2, "clip_stride": 5, "drop_last": True})
-            config["image"].update({"width": 64, "height": 48, "random_crop": True})
+            config["image"].update({
+                "width": 64,
+                "height": 48,
+                "lq_width": 32,
+                "lq_height": 24,
+                "random_crop": True,
+            })
             config["split"] = {"train": 1.0, "val": 0.0, "test": 0.0}
             summary = generate_dataset(config)
             self.assertTrue(summary["validation"]["valid"])
             self.assertEqual(summary["num_train_clips"], 2)
             self.assertEqual(summary["num_failed_videos"], 0)
 
-            report = validate_dataset(output_dir, expected_size=(48, 64), expected_num_frames=5)
+            report = validate_dataset(
+                output_dir,
+                expected_size=(48, 64),
+                expected_lq_size=(24, 32),
+                expected_num_frames=5,
+            )
             self.assertTrue(report["valid"], report["errors"])
             first_meta = read_json(output_dir / "train" / "clip_000000" / "meta.json")
             self.assertEqual(first_meta["frame_indices"], [0, 2, 4, 6, 8])
             self.assertEqual(first_meta["reference_frame_index"], 4)
+            self.assertEqual(first_meta["gt_resolution"], [48, 64])
+            self.assertEqual(first_meta["ref_resolution"], [48, 64])
+            self.assertEqual(first_meta["lq_resolution"], [24, 32])
+
+    def test_raw_yuv_with_unicode_sidecar(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="dataset-generator-yuv-test-") as root_value:
+            root = Path(root_value)
+            input_dir, output_dir = root / "YUV输入", root / "YUV输出"
+            input_dir.mkdir()
+            yuv_path = input_dir / "裸视频.yuv"
+            command = [
+                "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                "-f", "lavfi", "-i", "testsrc=size=64x48:rate=10",
+                "-frames:v", "12", "-pix_fmt", "yuv420p", "-f", "rawvideo", str(yuv_path),
+            ]
+            completed = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+            self.assertEqual(completed.returncode, 0, completed.stderr.decode("utf-8", errors="replace"))
+            sidecar = {"width": 64, "height": 48, "pix_fmt": "yuv420p", "fps": 10}
+            Path(str(yuv_path) + ".json").write_text(json.dumps(sidecar), encoding="utf-8")
+
+            config = copy.deepcopy(DEFAULT_CONFIG)
+            config.update({
+                "input_dir": str(input_dir),
+                "output_dir": str(output_dir),
+                "num_workers": 1,
+                "seed": 321,
+            })
+            config["clip"].update({
+                "num_frames": 5,
+                "frame_interval": 1,
+                "clip_stride": 5,
+                "drop_last": True,
+                "sampling_fps": 5.0,
+                "clip_duration_seconds": 1.0,
+                "clip_stride_seconds": 1.0,
+            })
+            config["image"].update({
+                "preserve_source_resolution": True,
+                "lq_width": 32,
+                "lq_height": 24,
+                "random_crop": False,
+            })
+            config["split"] = {"train": 1.0, "val": 0.0, "test": 0.0}
+            summary = generate_dataset(config)
+            self.assertTrue(summary["validation"]["valid"])
+            self.assertEqual(summary["num_source_videos"], 1)
+            self.assertEqual(summary["num_train_clips"], 1)
+            meta = read_json(output_dir / "train" / "clip_000000" / "meta.json")
+            self.assertTrue(meta["source_is_raw_yuv"])
+            self.assertEqual(meta["source_pixel_format"], "yuv420p")
+            self.assertEqual(meta["source_fps"], 10.0)
+            self.assertEqual(meta["fps"], 5.0)
+            self.assertEqual(meta["clip_duration_seconds"], 1.0)
+            self.assertTrue(meta["gt_preserves_source_resolution"])
+            self.assertEqual(meta["gt_resolution"], [48, 64])
+            self.assertEqual(meta["lq_resolution"], [24, 32])
 
 
 if __name__ == "__main__":

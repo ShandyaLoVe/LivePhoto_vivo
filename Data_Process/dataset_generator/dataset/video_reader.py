@@ -54,8 +54,18 @@ class FFmpegVideoReader:
         command = [
             self.ffmpeg_bin,
             "-hide_banner", "-loglevel", "error",
-            "-noautorotate",
-            "-i", str(self.path),
+        ]
+        if info.is_raw_yuv:
+            command += [
+                "-f", "rawvideo",
+                "-pixel_format", str(info.pix_fmt),
+                "-video_size", "%dx%d" % (info.width, info.height),
+                "-framerate", "%.12g" % info.fps,
+                "-i", str(self.path),
+            ]
+        else:
+            command += ["-noautorotate", "-i", str(self.path)]
+        command += [
             "-map", "0:%d" % info.stream_index,
             "-an", "-sn", "-dn",
         ] + passthrough_fps_args(self.ffmpeg_bin) + [
